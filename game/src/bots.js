@@ -7,6 +7,7 @@
 import * as THREE from 'three';
 import { PALETTE, WEAPONS } from './config.js';
 import { mulberry32 } from './mover.js';
+import { metalTexture } from './textures.js';
 
 const EMBER_NAMES = ['Ferro', 'Slag', 'Kindle'];
 const ASH_NAMES = ['Dust', 'Gravel', 'Soot', 'Flint'];
@@ -22,9 +23,10 @@ export function createBots(scene, world, mover, hooks) {
     adjacency[b].push(a);
   }
 
-  const emberMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(PALETTE.ember), roughness: 0.6, metalness: 0.1 });
-  const ashMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(PALETTE.ash), roughness: 0.6, metalness: 0.1 });
+  const emberMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(PALETTE.ember), map: metalTexture(71, 1, 1), roughness: 0.6, metalness: 0.1 });
+  const ashMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(PALETTE.ash), map: metalTexture(73, 1, 1), roughness: 0.6, metalness: 0.1 });
   const skinMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(PALETTE.ink), roughness: 0.6, metalness: 0.05 });
+  const visorMat = new THREE.MeshStandardMaterial({ color: new THREE.Color('#1c1a18'), roughness: 0.3, metalness: 0.5 });
   const darkMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(PALETTE.hairline), roughness: 0.85 });
   const torsoGeo = new THREE.BoxGeometry(0.52, 0.78, 0.3);
   const headGeo = new THREE.SphereGeometry(0.155, 16, 12);
@@ -78,13 +80,19 @@ export function createBots(scene, world, mover, hooks) {
     const head = new THREE.Mesh(headGeo, skinMat);
     head.position.y = 1.53;
     head.castShadow = true;
+    // Helmet cap and visor: the head reads as a soldier, not a mannequin.
+    // Neither is a hit mesh — the head sphere underneath still takes hits.
+    const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.17, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.55), teamMat);
+    helmet.position.y = 1.53;
+    const visor = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.06, 0.05), visorMat);
+    visor.position.set(0, 1.55, -0.14);
     const legL = new THREE.Mesh(legGeo, darkMat);
     legL.position.set(-0.13, 0.25, 0);
     const legR = new THREE.Mesh(legGeo, darkMat);
     legR.position.set(0.13, 0.25, 0);
     const gun = new THREE.Mesh(gunGeo, darkMat);
     gun.position.set(0.2, 1.15, -0.3);
-    group.add(torso, head, legL, legR, gun);
+    group.add(torso, head, helmet, visor, legL, legR, gun);
     scene.add(group);
 
     const bot = {
