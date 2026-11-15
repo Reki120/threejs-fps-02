@@ -8,30 +8,63 @@ const MUZZLE_TIME = 0.06;
 
 export function createWeapons(camera) {
   const gripMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(PALETTE.hairline), roughness: 0.7, metalness: 0.2 });
-  const bodyMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(PALETTE.ink), roughness: 0.5, metalness: 0.35 });
+  const bodyMat = new THREE.MeshStandardMaterial({ color: new THREE.Color('#57503f'), roughness: 0.45, metalness: 0.5 });
+  const woodMat = new THREE.MeshStandardMaterial({ color: new THREE.Color('#6b4a2f'), roughness: 0.7, metalness: 0.05 });
   const accentMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(PALETTE.accent), roughness: 0.5, metalness: 0.3 });
+  const lensMat = new THREE.MeshStandardMaterial({ color: new THREE.Color('#16242e'), roughness: 0.1, metalness: 0.8 });
 
-  // One view model per weapon, built from boxes; only the current one is visible.
+  // A small warm fill light on the camera, so the gun in the player's hands
+  // is lit from the front instead of falling black against the yard.
+  const fillLight = new THREE.PointLight(new THREE.Color('#ffd9a8'), 1.5, 2.5, 1.5);
+  fillLight.position.set(0.35, 0.25, -0.2);
+  camera.add(fillLight);
+
+  // One view model per weapon, built from boxes and cylinders: receiver,
+  // barrel, sights, grip and magazine, so the gun in the player's hands
+  // reads as a gun instead of a plank. Only the current one is visible.
+  function part(model, geometry, material, x, y, z, rx = 0, ry = 0, rz = 0) {
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.position.set(x, y, z);
+    mesh.rotation.set(rx, ry, rz);
+    model.add(mesh);
+    return mesh;
+  }
+  function barrelCyl(model, radius, length, z, material = bodyMat) {
+    return part(model, new THREE.CylinderGeometry(radius, radius, length, 12), material, 0, 0.02, z, Math.PI / 2);
+  }
+  function sight(model, x, y, z) {
+    part(model, new THREE.BoxGeometry(0.012, 0.03, 0.012), bodyMat, x, y, z);
+  }
   const models = {};
   for (const [key, def] of Object.entries(WEAPONS)) {
     const model = new THREE.Group();
-    const receiver = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.1, 0.4), bodyMat);
-    const barrel = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.045, def.barrel), gripMat);
-    barrel.position.set(0, 0.025, -0.2 - def.barrel / 2);
-    const stock = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.08, 0.22), gripMat);
-    stock.position.set(0, -0.02, 0.3);
-    model.add(receiver, barrel, stock);
-    if (key === 'longbow') {
-      const scope = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.24), accentMat);
-      scope.position.set(0, 0.09, -0.05);
-      model.add(scope);
-    }
-    if (key === 'wasp') {
-      const mag = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.22, 0.08), accentMat);
-      mag.position.set(0, -0.14, -0.05);
-      model.add(mag);
+    part(model, new THREE.BoxGeometry(0.07, 0.09, 0.42), bodyMat, 0, 0, 0);
+    barrelCyl(model, 0.02, def.barrel, -0.21 - def.barrel / 2);
+    part(model, new THREE.BoxGeometry(0.06, 0.16, 0.09), gripMat, 0, -0.1, 0.14, 0.25);
+    part(model, new THREE.BoxGeometry(0.05, 0.015, 0.1), bodyMat, 0, -0.055, -0.02);
+    sight(model, 0, 0.06, -0.36);
+    sight(model, -0.02, 0.06, 0.14);
+    sight(model, 0.02, 0.06, 0.14);
+    if (key === 'p9') {
+      part(model, new THREE.BoxGeometry(0.075, 0.05, 0.36), bodyMat, 0, 0.045, -0.02);
+    } else if (key === 'vk47') {
+      part(model, new THREE.CylinderGeometry(0.03, 0.03, 0.07, 12), bodyMat, 0, 0.02, -0.21 - def.barrel - 0.02, Math.PI / 2);
+      part(model, new THREE.BoxGeometry(0.075, 0.08, 0.22), woodMat, 0, 0, -0.18);
+      part(model, new THREE.BoxGeometry(0.05, 0.2, 0.09), bodyMat, 0, -0.13, -0.02, 0.3);
+      part(model, new THREE.BoxGeometry(0.07, 0.08, 0.24), woodMat, 0, -0.01, 0.3);
+      part(model, new THREE.BoxGeometry(0.012, 0.05, 0.012), bodyMat, 0, 0.07, -0.38);
+    } else if (key === 'wasp') {
+      part(model, new THREE.CylinderGeometry(0.035, 0.035, 0.2, 12), bodyMat, 0, 0.02, -0.3, Math.PI / 2);
+      part(model, new THREE.BoxGeometry(0.05, 0.24, 0.08), accentMat, 0, -0.15, -0.05);
+      part(model, new THREE.BoxGeometry(0.05, 0.06, 0.2), gripMat, 0, -0.01, 0.3);
+    } else if (key === 'longbow') {
+      part(model, new THREE.CylinderGeometry(0.035, 0.035, 0.26, 12), bodyMat, 0, 0.1, -0.05, Math.PI / 2);
+      part(model, new THREE.CylinderGeometry(0.03, 0.03, 0.01, 12), lensMat, 0, 0.1, -0.185, Math.PI / 2);
+      part(model, new THREE.CylinderGeometry(0.012, 0.012, 0.09, 8), bodyMat, 0.05, 0.02, 0.1, 0, 0, Math.PI / 2);
+      part(model, new THREE.BoxGeometry(0.07, 0.08, 0.24), woodMat, 0, -0.01, 0.3);
     }
     model.position.set(0.24, -0.2, -0.42);
+    model.scale.setScalar(0.92);
     model.visible = false;
     camera.add(model);
     models[key] = model;
