@@ -1,12 +1,17 @@
-// Visual effects: tracers, impact sparks, explosions. Pooled: a fixed set of
-// line tracers and point bursts reused, so the hot loop makes no new objects.
+// Visual effects: tracers, impact sparks, explosions, and the yard's ambient
+// dust: warm motes drifting up through the air, denser near the furnace.
+// Pooled: a fixed set of line tracers and point bursts reused, so the hot
+// loop makes no new objects.
 // The damage vignette is a DOM element the HUD owns; this module only drives it.
 import * as THREE from 'three';
 import { PALETTE } from './config.js';
+import { softDotTexture } from './textures.js';
+import { mulberry32 } from './mover.js';
 
 const TRACERS = 24;
 const SPARKS = 10;
 const SPARK_POINTS = 14;
+const DUST = 90;
 
 export function createEffects(scene) {
   const tracerMat = new THREE.LineBasicMaterial({
@@ -51,6 +56,30 @@ export function createEffects(scene) {
   let blastLife = 0;
   const blastPos = new THREE.Vector3();
 
+  // Ambient dust: one fixed cloud of warm motes, a third of them rising fast
+  // over the furnace, the rest drifting across the yard. Seeded positions and
+  // a seeded wrap RNG, so a deterministic capture renders the same motes.
+  const dustPos = new Float32Array(DUST * 3);
+  const dustVel = new Float32Array(DUST * 3);
+  const dustRng = mulberry32(99);
+  for (let i = 0; i < DUST; i += 1) {
+    const nearFurnace = i < DUST / 3;
+    dustPos[i * 3] = nearFurnace ? -20 + dustRng() * 8 : -21 + dustRng() * 42;
+    dustPos[i * 3 + 1] = 0.2 + dustRng() * 5.3;
+    dustPos[i * 3 + 2] = nearFurnace ? -14 + dustRng() * 8 : -17 + dustRng() * 34;
+    dustVel[i * 3] = (dustRng() - 0.5) * 0.24;
+    dustVel[i * 3 + 1] = nearFurnace ? 0.3 + dustRng() * 0.35 : 0.1 + dustRng() * 0.18;
+    dustVel[i * 3 + 2] = (dustRng() - 0.5) * 0.24;
+  }
+  const dustGeo = new THREE.BufferGeometry();
+  dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos, 3));
+  const dust = new THREE.Points(dustGeo, new THREE.PointsMaterial({
+    map: softDotTexture(), color: new THREE.Color('#ffb45e'), size: 0.13,
+    transparent: true, opacity: 0.5, depthWrite: false, blending: THREE.AdditiveBlending,
+  }));
+  dust.frustumCulled = false;
+  scene.add(dust);
+
   const tmp = new THREE.Vector3();
 
   return {
@@ -89,6 +118,21 @@ export function createEffects(scene) {
       blastLife = 0.55;
     },
     step(dt) {
+      // Dust drifts up and wraps to the floor, re-seeded so the pattern
+      // stays varied without ever allocating.
+      const attr = dustGeo.getAttribute('position');
+      for (let i = 0; i < DUST; i += 1) {
+        let x = attr.getX(i) + dustVel[i * 3] * dt;
+        let y = attr.getY(i) + dustVel[i * 3 + 1] * dt;
+        let z = attr.getZ(i) + dustVel[i * 3 + 2] * dt;
+        if (y > 6) {
+          y = 0.2;
+          x = -21 + dustRng() * 42;
+          z = -17 + dustRng() * 34;
+        }
+        attr.setXYZ(i, x, y, z);
+      }
+      attr.needsUpdate = true;
       for (const slot of tracers) {
         if (slot.life <= 0) continue;
         slot.life -= dt;
